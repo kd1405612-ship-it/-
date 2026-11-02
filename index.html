@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ギャンブル抑制サポート</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: sans-serif;
+            background: #f1f5f9;
+            color: #1e293b;
+            margin: 0;
+            padding: 20px;
+        }
+
+        main {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: #1e3a5f;
+            color: white;
+            padding: 24px;
+            border-radius: 16px;
+            margin-bottom: 20px;
+        }
+
+        header h1 {
+            margin-top: 0;
+            font-size: 26px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 14px;
+            padding: 20px;
+            margin-bottom: 18px;
+            box-shadow: 0 3px 12px #0000000d;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        #startButton {
+            background: #15803d;
+            color: white;
+        }
+
+        #stopButton {
+            background: #dc2626;
+            color: white;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #map {
+            height: 350px;
+            width: 100%;
+            border-radius: 10px;
+            background: #e2e8f0;
+        }
+
+        .info {
+            padding: 12px;
+            border-radius: 8px;
+            background: #f8fafc;
+            overflow-wrap: anywhere;
+            line-height: 1.8;
+        }
+
+        .warning {
+            background: #fef2f2;
+            color: #b91c1c;
+            padding: 14px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        .safe {
+            background: #f0fdf4;
+            color: #166534;
+            padding: 14px;
+            border-radius: 8px;
+        }
+
+        .muted {
+            color: #64748b;
+            font-size: 13px;
+            line-height: 1.7;
+        }
+
+        .money-summary {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin: 14px 0 22px;
+        }
+
+        .money-box {
+            background: #eff6ff;
+            border-radius: 10px;
+            padding: 14px;
+        }
+
+        .money-box p {
+            margin: 0 0 8px;
+            color: #475569;
+            font-size: 14px;
+        }
+
+        .money-box strong {
+            display: block;
+            color: #1d4ed8;
+            font-size: 24px;
+            overflow-wrap: anywhere;
+        }
+
+        .money-input {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .money-add-button {
+            background: #2563eb;
+            color: white;
+        }
+
+        #moneyHistory ul {
+            padding-left: 20px;
+            margin: 0;
+        }
+
+        #moneyHistory li {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .money-record-text {
+            overflow-wrap: anywhere;
+        }
+
+        .money-delete-button {
+            width: auto;
+            flex-shrink: 0;
+            margin: 0;
+            padding: 7px 12px;
+            background: #dc2626;
+            color: white;
+            font-size: 13px;
+        }
+
+        @media (max-width: 480px) {
+            .money-summary {
+                grid-template-columns: 1fr;
+            }
+
+            #moneyHistory li {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+        }
+
+    </style>
+</head>
+
+<body>
+<main>
+    <header>
+        <h1>🛡️ ギャンブル抑制サポート</h1>
+        <p>自分の行動を振り返り、無理のない選択をサポートします。</p>
+    </header>
+
+    <section class="card">
+        <h2>監視設定</h2>
+        <p id="status" class="info">監視は停止中です。</p>
+
+        <label for="radius">店舗からの判定距離（m）</label>
+        <input
+                id="radius"
+                type="number"
+                value="50"
+                min="10"
+                max="1000"
+                style="width:100%;padding:10px;margin:8px 0 14px;"
+        >
+
+        <label for="limit">警告までの滞在時間（分）</label>
+        <input
+                id="limit"
+                type="number"
+                value="1"
+                min="1"
+                max="1440"
+                style="width:100%;padding:10px;margin:8px 0 14px;"
+        >
+
+        <button id="startButton" onclick="startMonitoring()">
+            監視を開始
+        </button>
+
+        <button id="stopButton" onclick="stopMonitoring()" disabled>
+            監視を停止
+        </button>
+    </section>
+
+    <section class="card">
+        <h2>現在地と対象店舗</h2>
+        <div id="map"></div>
+        <p class="muted">
+            青い点が現在地、赤い円が対象店舗の判定エリアです。
+            店舗の座標はサンプルなので、使用前に実際の座標へ変更してください。
+        </p>
+    </section>
+
+
+
+
+
+
+
+    <section class="card">
+        <h2>現在の状況</h2>
+        <p id="coords" class="info">現在地：未取得</p>
+        <p id="address" class="info">住所：未取得</p>
+        <p id="distance" class="info">店舗との距離：未計測</p>
+        <p id="stay" class="info">滞在時間：未計測</p>
+        <p id="result" class="safe">監視を開始してください。</p>
+    </section>
+
+
+    <section class="card">
+        <h2>💰 ギャンブル使用金額管理</h2>
+
+        <div class="money-summary">
+            <div class="money-box">
+                <p>今日の使用金額</p>
+                <strong id="todayMoney">0円</strong>
+            </div>
+            <div class="money-box">
+                <p>今月の使用金額</p>
+                <strong id="monthMoney">0円</strong>
+            </div>
+        </div>
+
+        <h3>使用金額を登録</h3>
+
+        <label for="moneyAmount">使用金額（円）</label>
+        <input
+                id="moneyAmount"
+                type="number"
+                min="1"
+                step="1"
+                placeholder="例：5000"
+                class="money-input"
+        >
+
+        <label for="moneyShop">利用した店舗</label>
+        <input
+                id="moneyShop"
+                type="text"
+                maxlength="60"
+                placeholder="例：ACCESS三宮店"
+                class="money-input"
+        >
+
+        <button type="button" id="addMoneyButton" class="money-add-button">
+            金額を登録する
+        </button>
+
+        <h3>利用履歴</h3>
+        <div id="moneyHistory" class="info" aria-live="polite">
+            まだ履歴がありません。
+        </div>
+    </section>
+
+
+
+    <section class="card">
+        <h2>利用上の注意</h2>
+        <p class="muted">
+            このページはブラウザを開いている間に位置情報を確認する試作版です。
+            ブラウザを閉じた場合や端末がスリープした場合、監視が中断することがあります。
+            位置情報は端末内で判定し、このコードではサーバーへ送信しません。
+        </p>
+    </section>
+</main>
+
+<script>
+    // 実際の店舗に合わせて座標を変更してください
+    const targetShops = [
+        {
+           name: "ACCESS三宮店",
+            lat: 34.692096,
+            lng: 135.192636
+        },
+        {
+           name: "Taiyo三宮店",
+            lat: 34.6922,
+            lng: 135.1935
+        }
+    ];
+
+    let map = null;
+    let userMarker = null;
+    let watchId = null;
+    let stayStart = null;
+    let insideShop = null;
+    let warningShown = false;
+    let geocodeTime = 0;
+    let shopMarkers = [];
+    let shopCircles = [];
+    let lastPosition = null;
+
+    const $ = id => document.getElementById(id);
+
+    // アラーム音を鳴らす
+let audioContext = null;
+
+function playAlarm() {
+    try {
+        if (!audioContext) {
+            audioContext = new (
+                window.AudioContext || window.webkitAudioContext
+            )();
+        }
+
+        if (audioContext.state === "suspended") {
+            audioContext.resume();
+        }
+
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        oscillator.type = "sine";
+        oscillator.frequency.value = 880;
+        gain.gain.value = 0.3;
+
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+
+        oscillator.start();
+
+        setTimeout(() => {
+            oscillator.stop();
+            oscillator.disconnect();
+            gain.disconnect();
+        }, 1000);
+    } catch (error) {
+        console.error("アラーム音を再生できませんでした", error);
+    }
+}
+
+    // 2地点間の距離をメートル単位で計算
+    function getDistance(lat1, lng1, lat2, lng2) {
+        const R = 6371000;
+        const rad = Math.PI / 180;
+
+        const dLat = (lat2 - lat1) * rad;
+        const dLng = (lng2 - lng1) * rad;
+
+        const a =
+            Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1 * rad) *
+            Math.cos(lat2 * rad) *
+            Math.sin(dLng / 2) ** 2;
+
+        return R * 2 * Math.atan2(
+            Math.sqrt(a),
+            Math.sqrt(1 - a)
+        );
+    }
+
+    // 店舗からの判定距離を取得
+    function getRadius() {
+        const value = Number($("radius").value);
+
+        return Number.isFinite(value) && value >= 10
+            ? Math.min(value, 1000)
+            : 50;
+    }
+
+    // 警告までの滞在時間をミリ秒で取得
+    function getLimitMs() {
+        const value = Number($("limit").value);
+
+        const minutes = Number.isFinite(value) && value >= 1
+            ? Math.min(value, 1440)
+            : 10;
+
+        return minutes * 60 * 1000;
+    }
+
+    function setStatus(message) {
+        $("status").textContent = message;
+    }
+
+    // Google Mapsを初期化
+    function initMap(latLng) {
+        if (!window.google || !google.maps) {
+            $("result").textContent =
+                "Googleマップを読み込めません。APIキーと設定を確認してください。";
+            $("result").className = "warning";
+            return;
+        }
+
+        if (!map) {
+            map = new google.maps.Map($("map"), {
+                center: latLng,
+                zoom: 17,
+                mapTypeControl: false
+            });
+
+            // 現在地の青いマーカー
+            userMarker = new google.maps.Marker({
+                position: latLng,
+                map: map,
+                title: "現在地",
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 8,
+                    fillColor: "#4285F4",
+                    fillOpacity: 1,
+                    strokeColor: "#ffffff",
+                    strokeWeight: 2
+                }
+            });
+
+            // 対象店舗のマーカーと判定範囲の円
+            targetShops.forEach(shop => {
+                const position = {
+                    lat: shop.lat,
+                    lng: shop.lng
+                };
+
+                shopMarkers.push(
+                    new google.maps.Marker({
+                        position: position,
+                        map: map,
+                        title: shop.name,
+                        label: "店"
+                    })
+                );
+
+                shopCircles.push(
+                    new google.maps.Circle({
+                        map: map,
+                        center: position,
+                        radius: getRadius(),
+                        strokeColor: "#dc2626",
+                        strokeOpacity: 0.8,
+                        strokeWeight: 1,
+                        fillColor: "#dc2626",
+                        fillOpacity: 0.15
+                    })
+                );
+            });
+        } else {
+            // 2回目以降は現在地だけ更新
+            map.setCenter(latLng);
+            userMarker.setPosition(latLng);
+        }
+
+        // 判定距離を地図の円にも反映
+        shopCircles.forEach(circle => {
+            circle.setRadius(getRadius());
+        });
+    }
+
+    // 現在地から住所を取得
+    function updateAddress(latLng) {
+        if (!window.google || !google.maps) {
+            return;
+        }
+
+        // 住所検索を連続して呼び出さない
+        const now = Date.now();
+
+        if (now - geocodeTime < 30000) {
+            return;
+        }
+
+        geocodeTime = now;
+
+        const geocoder = new google.maps.Geocoder();
+
+        geocoder.geocode(
+            { location: latLng },
+            (results, status) => {
+                if (status === "OK" && results && results[0]) {
+                    $("address").textContent =
+                        "住所：" + results[0].formatted_address;
+                } else {
+                    $("address").textContent =
+                        "住所を取得できませんでした。";
+                }
+            }
+        );
+    }
+
+    // 滞在時間を画面に表示
+    function updateStayDisplay() {
+        if (!stayStart) {
+            $("stay").textContent = "滞在時間：0分";
+            return;
+        }
+
+        const elapsed = Date.now() - stayStart;
+        const totalSeconds = Math.floor(elapsed / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+
+        $("stay").textContent =
+            `滞在時間：約${minutes}分${seconds}秒`;
+    }
+
+    // 現在地を取得したときの処理
+    function handlePosition(position) {
+        lastPosition = position;
+
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const accuracy = Math.round(position.coords.accuracy);
+
+        const latLng = {
+            lat: lat,
+            lng: lng
+        };
+
+        $("coords").textContent =
+            `緯度：${lat.toFixed(6)} / 経度：${lng.toFixed(6)} / 精度：約${accuracy}m`;
+
+        initMap(latLng);
+        updateAddress(latLng);
+
+        // 位置情報の誤差が大きい場合は注意を表示
+        if (position.coords.accuracy > getRadius()) {
+            $("result").textContent =
+                `位置情報の誤差が約${accuracy}mあります。判定は不正確な可能性があります。`;
+            $("result").className = "warning";
+        }
+
+        let nearestShop = null;
+        let nearestDistance = Infinity;
+
+        // 最も近い店舗を調べる
+        targetShops.forEach(shop => {
+            const distance = getDistance(
+                lat,
+                lng,
+                shop.lat,
+                shop.lng
+            );
+
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearestShop = shop;
+            }
+        });
+
+        if (!nearestShop) {
+            return;
+        }
+
+        $("distance").textContent =
+            `最寄り：${nearestShop.name} / 距離：約${Math.round(nearestDistance)}m`;
+
+        const isNear = nearestDistance <= getRadius();
+
+        if (isNear) {
+            // 店舗エリアに新しく入ったときに滞在時間を開始
+            if (insideShop !== nearestShop.name) {
+                insideShop = nearestShop.name;
+                stayStart = Date.now();
+                warningShown = false;
+            }
+
+            const elapsed = Date.now() - stayStart;
+
+            updateStayDisplay();
+
+            if (elapsed >= getLimitMs()) {
+                $("result").textContent =
+                    `注意：${nearestShop.name}の判定エリアに設定時間以上滞在しています。少し離れて休憩しませんか？`;
+
+                $("result").className = "warning";
+
+                if (!warningShown) {
+                    warningShown = true;
+
+                    playAlarm();
+
+              alert(
+                     "設定した滞在時間になりました。少し離れて休憩しませんか？"
+                    );
+                }
+            } else {
+                $("result").textContent =
+                    `${nearestShop.name}の判定エリア内です。滞在時間に注意しましょう。`;
+
+                $("result").className = "warning";
+            }
+        } else {
+            // 店舗の判定エリア外
+            insideShop = null;
+            stayStart = null;
+            warningShown = false;
+
+            updateStayDisplay();
+
+            $("result").textContent =
+                "登録した店舗の判定エリア外です。";
+
+            $("result").className = "safe";
+        }
+    }
+
+    // 位置情報取得エラーの処理
+    function handleError(error) {
+        const messages = {
+            1: "位置情報が許可されていません。ブラウザの設定を確認してください。",
+            2: "現在地を取得できません。端末の位置情報設定を確認してください。",
+            3: "位置情報の取得がタイムアウトしました。再試行してください。"
+        };
+
+        setStatus("位置情報の取得に失敗しました。");
+
+        $("result").textContent =
+            messages[error.code] ||
+            "位置情報の取得中にエラーが発生しました。";
+
+        $("result").className = "warning";
+    }
+
+    // 位置情報の監視を開始
+    function startMonitoring() {
+        if (watchId !== null) {
+            return;
+        }
+
+        if (!navigator.geolocation) {
+            $("result").textContent =
+                "このブラウザは位置情報に対応していません。";
+
+            $("result").className = "warning";
+            return;
+        }
+
+        setStatus("監視中です。位置情報を確認しています...");
+
+        $("startButton").disabled = true;
+        $("stopButton").disabled = false;
+
+        watchId = navigator.geolocation.watchPosition(
+            handlePosition,
+            handleError,
+            {
+                enableHighAccuracy: true,
+                maximumAge: 5000,
+                timeout: 20000
+            }
+        );
+    }
+
+    // 位置情報の監視を停止
+    function stopMonitoring() {
+        if (watchId !== null) {
+            navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+        }
+
+        setStatus("監視は停止中です。");
+
+        $("startButton").disabled = false;
+        $("stopButton").disabled = true;
+
+        $("result").textContent = "監視を停止しました。";
+        $("result").className = "safe";
+
+        insideShop = null;
+        stayStart = null;
+        warningShown = false;
+
+        updateStayDisplay();
+    }
+
+    // 判定距離を変更したときに再計算
+    $("radius").addEventListener("change", () => {
+        if (lastPosition) {
+            handlePosition(lastPosition);
+        }
+    });
+
+    // 警告までの滞在時間を変更したときに再計算
+    $("limit").addEventListener("change", () => {
+        if (lastPosition) {
+            handlePosition(lastPosition);
+        }
+    });
+
+    // Google Maps APIの読み込み完了後に地図を表示
+    function onGoogleMapsReady() {
+        if (lastPosition) {
+            handlePosition(lastPosition);
+        }
+    }
+
+    // ==============================
+    // ギャンブル使用金額管理機能
+    // ==============================
+
+    const MONEY_STORAGE_KEY = "gambleMoneyRecords";
+
+    // 保存済みの利用履歴を読み込む
+    function getMoneyRecords() {
+        try {
+            const records = JSON.parse(
+                localStorage.getItem(MONEY_STORAGE_KEY) || "[]"
+            );
+
+            return Array.isArray(records) ? records : [];
+        } catch (error) {
+            console.error("利用履歴の読み込みに失敗しました。", error);
+            return [];
+        }
+    }
+
+    // 日本時間の日付を YYYY-MM-DD 形式で取得
+    function getTodayDate() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, "0");
+        const day = String(now.getDate()).padStart(2, "0");
+
+        return `${year}-${month}-${day}`;
+    }
+
+    // 金額をカンマ区切りの円表示にする
+    function formatYen(amount) {
+        return Number(amount).toLocaleString("ja-JP") + "円";
+    }
+
+    // 使用金額を登録する
+    function addMoneyRecord() {
+        const amountInput = $("moneyAmount");
+        const shopInput = $("moneyShop");
+
+        const amount = Number(amountInput.value);
+        const shop = shopInput.value.trim();
+
+        if (!Number.isSafeInteger(amount) || amount <= 0) {
+            alert("1円以上の整数で金額を入力してください。");
+            amountInput.focus();
+            return;
+        }
+
+        if (!shop) {
+            alert("利用した店舗名を入力してください。");
+            shopInput.focus();
+            return;
+        }
+
+        const records = getMoneyRecords();
+
+        records.push({
+            id: Date.now().toString() + Math.random().toString(16).slice(2),
+            amount: amount,
+            shop: shop,
+            date: getTodayDate()
+        });
+
+        try {
+            localStorage.setItem(MONEY_STORAGE_KEY, JSON.stringify(records));
+        } catch (error) {
+            console.error("利用履歴の保存に失敗しました。", error);
+            alert("データを保存できませんでした。ブラウザの空き容量などを確認してください。");
+            return;
+        }
+
+        amountInput.value = "";
+        shopInput.value = "";
+
+        renderMoneyRecords();
+        alert("使用金額を登録しました。");
+    }
+
+    // 合計金額と利用履歴を画面に表示する
+    function renderMoneyRecords() {
+        const records = getMoneyRecords();
+        const today = getTodayDate();
+        const currentMonth = today.slice(0, 7);
+
+        const todayTotal = records
+            .filter(record => record.date === today)
+            .reduce((sum, record) => sum + Number(record.amount || 0), 0);
+
+        const monthTotal = records
+            .filter(record =>
+                typeof record.date === "string" &&
+                record.date.startsWith(currentMonth)
+            )
+            .reduce((sum, record) => sum + Number(record.amount || 0), 0);
+
+        $("todayMoney").textContent = formatYen(todayTotal);
+        $("monthMoney").textContent = formatYen(monthTotal);
+
+        const history = $("moneyHistory");
+        history.textContent = "";
+
+        if (records.length === 0) {
+            history.textContent = "まだ履歴がありません。";
+            return;
+        }
+
+        const list = document.createElement("ul");
+
+        const sortedRecords = [...records].sort((a, b) => {
+            const dateCompare = String(b.date).localeCompare(String(a.date));
+            if (dateCompare !== 0) return dateCompare;
+            return String(b.id).localeCompare(String(a.id));
+        });
+
+        sortedRecords.forEach(record => {
+            const item = document.createElement("li");
+
+            const text = document.createElement("span");
+            text.className = "money-record-text";
+            text.textContent =
+                `${record.date} / ${record.shop} / ${formatYen(record.amount)}`;
+
+            const deleteButton = document.createElement("button");
+            deleteButton.type = "button";
+            deleteButton.className = "money-delete-button";
+            deleteButton.textContent = "削除";
+            deleteButton.addEventListener("click", () => {
+                deleteMoneyRecord(record.id);
+            });
+
+            item.appendChild(text);
+            item.appendChild(deleteButton);
+            list.appendChild(item);
+        });
+
+        history.appendChild(list);
+    }
+
+    // 指定した利用履歴を削除する
+    function deleteMoneyRecord(id) {
+        if (!confirm("この利用履歴を削除しますか？")) {
+            return;
+        }
+
+        const records = getMoneyRecords();
+        const updatedRecords = records.filter(record => record.id !== id);
+
+        try {
+            localStorage.setItem(
+                MONEY_STORAGE_KEY,
+                JSON.stringify(updatedRecords)
+            );
+        } catch (error) {
+            console.error("利用履歴の更新に失敗しました。", error);
+            alert("履歴を削除できませんでした。");
+            return;
+        }
+
+        renderMoneyRecords();
+    }
+
+    // 登録ボタンのイベント設定と初期表示
+    $("addMoneyButton").addEventListener("click", addMoneyRecord);
+    renderMoneyRecords();
+
+
+</script>
+
+<!-- Google Maps APIキーを設定してください -->
+<script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA_HkW4dpIttV2MhEyhPF5NBGJRq2Jlnrs&language=ja&callback=onGoogleMapsReady">
+</script>
+
+</body>
+</html>
